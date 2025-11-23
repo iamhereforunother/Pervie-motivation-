@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Liquid Glass — demo</title>
+  <style>
+    :root{
+      --bg: url('/mnt/data/8ECC686E-AE75-4523-BD6D-EC752BCBF5C6.jpeg') center/cover no-repeat;
+      --card-w: 480px;
+      --card-h: 480px;
+      --card-r: 28px;
+      --card-pad: 1.5px;
+      --card-blur: 14px;
+      --card-outline-opacity: 1;
+      --inner-shadow: 8px;
+      --outer-shadow: 18px;
+      --outer-shadow-color: rgba(2,6,23,0.6);
+      --blend-mode: normal;
+      --outline-css: linear-gradient(180deg, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0.25) 30%, rgba(255,255,255,0.10) 60%, rgba(255,255,255,0.04) 85%, rgba(255,255,255,0.0) 100%);
+      --accent: #64ffda;
+    }
+    html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,'Helvetica Neue',Arial}
+    body{
+      background: var(--bg);
+      transition: background 240ms ease;
+      display:flex;align-items:center;justify-content:center;background-color:#000;overflow:hidden;
+    }
+
+    /* controls */
+    .controls{
+      position: fixed; left:18px; top:18px; z-index:40;
+      width:360px; background:rgba(0,0,0,0.45); backdrop-filter: blur(6px);
+      padding:12px; border-radius:12px; color:#fff; box-shadow:0 6px 20px rgba(0,0,0,0.6);
+      font-size:13px; transition:transform .22s,opacity .22s;
+    }
+    .controls.hidden{transform:translateY(-8px) scale(.98);opacity:0;pointer-events:none;visibility:hidden}
+    .controls h3{margin:0 0 8px 0;font-weight:600;font-size:14px}
+    .row{display:flex;gap:8px;align-items:center;margin:8px 0}
+    .row label{width:140px;flex:0 0 140px}
+    .row input[type=range]{flex:1}
+    .val{width:64px;text-align:right;color:#cfd8dc}
+    .file{display:flex;gap:8px}
+    .file input[type=file]{flex:1}
+    .btn{background:#0b1220;border:1px solid rgba(255,255,255,0.06);padding:8px 10px;border-radius:8px;color:#fff;cursor:pointer}
+
+    /* custom slider color using CSS variable */
+    input[type=range]{-webkit-appearance:none;height:6px;border-radius:6px;background:linear-gradient(90deg,#333 0%,#222 100%);outline:none}
+    input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:6px}
+    input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--accent);border:3px solid rgba(0,0,0,0.45);margin-top:-5px}
+    input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:var(--accent);border:3px solid rgba(0,0,0,0.45)}
+
+    /* stage */
+    .stage{position:relative;width:100%;height:100%}
+
+    /* background image element for special square handling */
+    #bgImgEl{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:0;pointer-events:none;display:none}
+
+    /* the liquid glass card */
+    .glass-wrap{position:relative;display:flex;align-items:center;justify-content:center;width:100%;height:100%;z-index:10}
+    .glass{
+      --pad: calc(var(--card-pad));
+      width: var(--card-w);
+      height: var(--card-h);
+      border-radius: var(--card-r);
+      position: relative;box-sizing: border-box;
+      background: linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.03) 30%, rgba(255,255,255,0.015) 60%, rgba(255,255,255,0.01) 85%, rgba(255,255,255,0) 100%);
+      box-shadow: inset 0 0 var(--inner-shadow) rgba(0,0,0,0.45), 0 var(--outer-shadow) calc(var(--outer-shadow) * 1.8) var(--outer-shadow-color);
+      backdrop-filter: blur(var(--card-blur)) saturate(130%);
+      -webkit-backdrop-filter: blur(var(--card-blur)) saturate(130%);
+      overflow:visible;display:block;transform: translateZ(0);
+      pointer-events: none; mix-blend-mode: var(--blend-mode);
+    }
+
+    /* outline using pseudo-element and variable background so JS can switch methods */
+    .glass::after{
+      content: '';
+      position: absolute; inset: 0;border-radius: inherit;padding: calc(var(--pad));
+      background: var(--outline-css);
+      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor; mask-composite: exclude; pointer-events: none; opacity: var(--card-outline-opacity);
+    }
+
+    .glass::before{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;background: radial-gradient(120% 60% at 10% 10%, rgba(255,255,255,0.06), transparent 20%), linear-gradient(180deg, rgba(255,255,255,0.02), transparent 40%);mix-blend-mode: overlay}
+
+    .hint{position:fixed;right:18px;bottom:18px;background:rgba(255,255,255,0.04);color:#ddd;padding:8px 12px;border-radius:10px;font-size:13px;z-index:40}
+
+    @media (max-width:760px){.controls{width:92%;left:50%;transform:translateX(-50%)}}
+  </style>
+</head>
+<body>
+  <div class="controls" id="controls">
+    <h3>Liquid glass — настройки</h3>
+    <div class="row file">
+      <label>Фон</label>
+      <input type="file" id="bgFile" accept="image/*">
+      <button id="resetBg" class="btn" title="Вернуть фон по-умолчанию">Сброс</button>
+    </div>
+
+    <div class="row">
+      <label>Режим фона</label>
+      <select id="bgMode" style="flex:1">
+        <option value="cover">Заполнить (cover)</option>
+        <option value="contain">Сохранить пропорции (contain)</option>
+        <option value="square">Square-scale (если картинка квадратная — останется квадратной)</option>
+      </select>
+    </div>
+
+    <div class="row">
+      <label>Ширина</label>
+      <input type="range" id="w" min="120" max="1400" value="480">
+      <div class="val" id="wVal">480px</div>
+    </div>
+    <div class="row">
+      <label>Высота</label>
+      <input type="range" id="h" min="120" max="1400" value="480">
+      <div class="val" id="hVal">480px</div>
+    </div>
+    <div class="row">
+      <label>Скругление</label>
+      <input type="range" id="r" min="0" max="160" value="28">
+      <div class="val" id="rVal">28px</div>
+    </div>
+    <div class="row">
+      <label>Размытие</label>
+      <input type="range" id="blur" min="0" max="60" value="14">
+      <div class="val" id="blurVal">14px</div>
+    </div>
+    <div class="row">
+      <label>Внутр. тень</label>
+      <input type="range" id="inset" min="0" max="40" value="8">
+      <div class="val" id="insetVal">8px</div>
+    </div>
+    <div class="row">
+      <label>Внешн. тень</label>
+      <input type="range" id="outer" min="0" max="80" value="18">
+      <div class="val" id="outerVal">18px</div>
+    </div>
+    <div class="row">
+      <label>Толщина обводки</label>
+      <input type="range" id="pad" min="0" max="8" step="0.1" value="1.5">
+      <div class="val" id="padVal">1.5px</div>
+    </div>
+    <div class="row">
+      <label>Непрозрачность</label>
+      <input type="range" id="op" min="0" max="1" step="0.01" value="1">
+      <div class="val" id="opVal">1.00</div>
+    </div>
+
+    <div class="row">
+      <label>Ползунки — цвет</label>
+      <input type="color" id="sliderColor" value="#64ffda" style="width:56px;height:32px;border-radius:6px;border:none;background:none;padding:0">
+      <div style="flex:1;color:#cfd8dc;font-size:12px;align-self:center">Цвет бегунка</div>
+    </div>
+
+    <div class="row">
+      <label>Метод наложения</label>
+      <select id="blend" style="flex:1">
+        <option value="normal">normal</option>
+        <option value="multiply">multiply</option>
+        <option value="screen">screen</option>
+        <option value="overlay">overlay</option>
+        <option value="darken">darken</option>
+        <option value="lighten">lighten</option>
+        <option value="soft-light">soft-light</option>
+        <option value="hard-light">hard-light</option>
+      </select>
+    </div>
+
+    <div class="row">
+      <label>Обводка — метод</label>
+      <select id="outlineDir" style="flex:1">
+        <option value="180deg">Сверху вниз</option>
+        <option value="0deg">Снизу вверх</option>
+        <option value="90deg">Слева направо</option>
+        <option value="270deg">Справа налево</option>
+        <option value="45deg">Диагональ TL → BR</option>
+        <option value="225deg">Диагональ BR → TL</option>
+        <option value="left">Только слева</option>
+        <option value="right">Только справа</option>
+        <option value="top">Только сверху</option>
+        <option value="bottom">Только снизу</option>
+        <option value="corners-tl-br">Углы: лев.верх + прав.низ</option>
+        <option value="corners-tr-bl">Углы: прав.верх + лев.низ</option>
+        <option value="sides">Слева и справа</option>
+      </select>
+    </div>
+
+    <div style="display:flex;gap:8px;margin-top:8px;justify-content:flex-end">
+      <button id="export" class="btn">Экспорт PNG</button>
+    </div>
+  </div>
+
+  <div class="stage">
+    <img id="bgImgEl" alt="background" />
+    <div class="glass-wrap">
+      <div id="card" class="glass" aria-hidden="true"></div>
+    </div>
+  </div>
+
+  <div class="hint">Тапни по экрану (вне меню) — меню скрывается/появляется.</div>
+
+  <script>
+    const root = document.documentElement;
+    const card = document.getElementById('card');
+    const controls = document.getElementById('controls');
+    const bgImgEl = document.getElementById('bgImgEl');
+
+    function setVar(name, value){ root.style.setProperty(name, value); }
+
+    const els = {
+      w: document.getElementById('w'), h: document.getElementById('h'), r: document.getElementById('r'),
+      blur: document.getElementById('blur'), pad: document.getElementById('pad'), op: document.getElementById('op'),
+      inset: document.getElementById('inset'), outer: document.getElementById('outer'),
+      wVal: document.getElementById('wVal'), hVal: document.getElementById('hVal'), rVal: document.getElementById('rVal'),
+      blurVal: document.getElementById('blurVal'), padVal: document.getElementById('padVal'), opVal: document.getElementById('opVal'),
+      insetVal: document.getElementById('insetVal'), outerVal: document.getElementById('outerVal'),
+      blend: document.getElementById('blend'), outlineDir: document.getElementById('outlineDir'), bgMode: document.getElementById('bgMode'), sliderColor: document.getElementById('sliderColor')
+    };
+
+    function outlineCSSFor(option){
+      // returns CSS gradient string for --outline-css
+      switch(option){
+        case 'left': return 'linear-gradient(90deg, rgba(255,255,255,0.85), rgba(255,255,255,0.0) 40%)';
+        case 'right': return 'linear-gradient(270deg, rgba(255,255,255,0.85), rgba(255,255,255,0.0) 40%)';
+        case 'top': return 'linear-gradient(180deg, rgba(255,255,255,0.85), rgba(255,255,255,0.0) 40%)';
+        case 'bottom': return 'linear-gradient(0deg, rgba(255,255,255,0.85), rgba(255,255,255,0.0) 40%)';
+        case 'corners-tl-br': return 'linear-gradient(45deg, rgba(255,255,255,0.85) 0%, rgba(255,255,255,0.0) 35%), linear-gradient(225deg, rgba(255,255,255,0.85) 0%, rgba(255,255,255,0.0) 35%)';
+        case 'corners-tr-bl': return 'linear-gradient(135deg, rgba(255,255,255,0.85) 0%, rgba(255,255,255,0.0) 35%), linear-gradient(315deg, rgba(255,255,255,0.85) 0%, rgba(255,255,255,0.0) 35%)';
+        case 'sides': return 'linear-gradient(90deg, rgba(255,255,255,0.85) 0%, rgba(255,255,255,0.0) 30%), linear-gradient(270deg, rgba(255,255,255,0.85) 0%, rgba(255,255,255,0.0) 30%)';
+        default: // accepts angles like '180deg' or '45deg'
+          return `linear-gradient(${option}, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0.25) 30%, rgba(255,255,255,0.10) 60%, rgba(255,255,255,0.04) 85%, rgba(255,255,255,0.0) 100%)`;
+      }
+    }
+
+    function updateAll(){
+      const w = els.w.value + 'px';
+      const h = els.h.value + 'px';
+      const r = els.r.value + 'px';
+      const blur = els.blur.value + 'px';
+      const pad = els.pad.value + 'px';
+      const op = els.op.value;
+      const inset = els.inset.value + 'px';
+      const outer = els.outer.value + 'px';
+      setVar('--card-w', w); setVar('--card-h', h); setVar('--card-r', r); setVar('--card-blur', blur); setVar('--card-pad', pad); setVar('--card-outline-opacity', op);
+      setVar('--inner-shadow', inset); setVar('--outer-shadow', outer);
+      setVar('--blend-mode', els.blend.value);
+      setVar('--accent', els.sliderColor.value);
+      const dir = els.outlineDir.value;
+      setVar('--outline-css', outlineCSSFor(dir));
+
+      els.wVal.textContent = w; els.hVal.textContent = h; els.rVal.textContent = r; els.blurVal.textContent = blur; els.padVal.textContent = pad; els.opVal.textContent = parseFloat(op).toFixed(2);
+      els.insetVal.textContent = inset; els.outerVal.textContent = outer;
+    }
+
+    ['w','h','r','blur','pad','op','inset','outer'].forEach(id=>{ document.getElementById(id).addEventListener('input', updateAll); });
+    els.blend.addEventListener('change', updateAll); els.outlineDir.addEventListener('change', updateAll); els.sliderColor.addEventListener('input', updateAll);
+
+    updateAll();
+
+    // background upload + modes
+    const bgFile = document.getElementById('bgFile');
+    const resetBg = document.getElementById('resetBg');
+    const defaultBg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
+    let bgImg = null, bgMode = 'cover';
+
+    function applyBgFromURL(url){
+      const img = new Image(); img.crossOrigin='anonymous'; img.src = url;
+      img.onload = ()=>{
+        bgImg = img;
+        bgMode = els.bgMode.value;
+        if(bgMode === 'square' && Math.abs(img.naturalWidth / img.naturalHeight - 1) < 0.02){
+          // make a large centered square element that preserves square aspect
+          const size = Math.max(window.innerWidth, window.innerHeight) * 1.2;
+          bgImgEl.src = url; bgImgEl.style.width = size + 'px'; bgImgEl.style.height = size + 'px'; bgImgEl.style.objectFit = 'cover'; bgImgEl.style.display = 'block';
+          document.body.style.background = 'none';
+        } else if(bgMode === 'contain'){
+          document.body.style.background = `url('${url}') center/contain no-repeat`;
+          bgImgEl.style.display = 'none';
+        } else { // cover
+          document.body.style.background = `url('${url}') center/cover no-repeat`;
+          bgImgEl.style.display = 'none';
+        }
+      }
+    }
+
+    bgFile.addEventListener('change', e=>{
+      const f = e.target.files && e.target.files[0]; if(!f) return;
+      const url = URL.createObjectURL(f);
+      applyBgFromURL(url);
+    });
+    els.bgMode.addEventListener('change', ()=>{
+      if(!bgImg) return; applyBgFromURL(bgImg.src);
+    })
+    resetBg.addEventListener('click', ()=>{ document.body.style.background = defaultBg; bgImgEl.style.display='none'; bgImg=null });
+
+    // tap to toggle controls (touch/click) — anywhere except inside the controls
+    function toggleControls(){ controls.classList.toggle('hidden'); }
+    // use pointerdown for best cross-device behaviour
+    document.addEventListener('pointerdown', (e)=>{ if(e.composedPath().includes(controls)) return; toggleControls(); });
+    // prevent clicks inside controls from toggling
+    controls.addEventListener('pointerdown', e=>e.stopPropagation());
+
+    // export updated: handle bgImgEl if present
+    const exportBtn = document.getElementById('export');
+    exportBtn.addEventListener('click', async ()=>{
+      try{
+        const w = parseInt(els.w.value), h = parseInt(els.h.value);
+        const c = document.createElement('canvas'); c.width = w; c.height = h;
+        const ctx = c.getContext('2d');
+
+        // draw background
+        if(bgImg){
+          if(els.bgMode.value === 'square' && Math.abs(bgImg.naturalWidth / bgImg.naturalHeight - 1) < 0.02){
+            // draw centered square image scaled to cover
+            const scale = Math.max(w / bgImg.naturalWidth, h / bgImg.naturalHeight);
+            const dw = bgImg.naturalWidth * scale; const dh = bgImg.naturalHeight * scale;
+            const dx = (w - dw)/2; const dy = (h - dh)/2;
+            ctx.drawImage(bgImg, dx, dy, dw, dh);
+          } else {
+            // cover behaviour for export
+            const ar = bgImg.naturalWidth / bgImg.naturalHeight; const car = w / h; let dw = w, dh = h, dx=0, dy=0;
+            if(ar > car){ dh = h; dw = h * ar; dx = (w - dw) / 2; } else { dw = w; dh = w / ar; dy = (h - dh) / 2; }
+            ctx.drawImage(bgImg, dx, dy, dw, dh);
+          }
+        } else {
+          // fallback: draw computed body background via CSS (not reliable for remote images)
+          const cssBg = getComputedStyle(document.body).backgroundImage;
+          if(cssBg && cssBg !== 'none'){
+            const m = cssBg.match(/url\(["']?(.+?)["']?\)/);
+            if(m){ const img = new Image(); img.crossOrigin='anonymous'; img.src = m[1]; await new Promise(res=> img.onload = res); const ar = img.width/img.height; const car = w/h; let dw=w,dh=h,dx=0,dy=0; if(ar>car){ dh=h; dw=h*ar; dx=(w-dw)/2 } else { dw=w; dh=w/ar; dy=(h-dh)/2 } ctx.drawImage(img, dx, dy, dw, dh); }
+          }
+        }
+
+        // draw glass (base fill)
+        ctx.fillStyle = 'rgba(255,255,255,0.06)';
+        roundRect(ctx, 0, 0, w, h, parseInt(els.r.value)); ctx.fill();
+
+        // overlay subtle highlight
+        const grd = ctx.createLinearGradient(0,0,0,h); grd.addColorStop(0, 'rgba(255,255,255,0.06)'); grd.addColorStop(0.35, 'rgba(255,255,255,0.02)'); ctx.fillStyle = grd; ctx.globalCompositeOperation = 'overlay'; ctx.fill(); ctx.globalCompositeOperation = 'source-over';
+
+        // inner shadow (approximation)
+        const inset = parseFloat(els.inset.value);
+        if(inset>0){ ctx.save(); ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = 'rgba(0,0,0,0.12)'; roundRect(ctx, 0, 0, w, h, parseInt(els.r.value)); ctx.clip(); for(let i=0;i<inset;i+=4){ ctx.strokeStyle = `rgba(0,0,0,${0.04})`; ctx.lineWidth = 4; roundRectStroke(ctx, i, i, w-i*2, h-i*2, Math.max(0,parseInt(els.r.value)-i)); ctx.stroke(); } ctx.restore(); }
+
+        // outline (approximation)
+        const pad = parseFloat(els.pad.value);
+        const op = parseFloat(els.op.value);
+        if(pad > 0 && op > 0){ ctx.lineWidth = pad*2; ctx.strokeStyle = `rgba(255,255,255,${0.6*op})`; roundRectStroke(ctx, ctx.lineWidth/2, ctx.lineWidth/2, w-ctx.lineWidth, h-ctx.lineWidth, parseInt(els.r.value)); ctx.stroke(); }
+
+        // export
+        const data = c.toDataURL('image/png'); const a = document.createElement('a'); a.href = data; a.download = 'liquid-glass.png'; a.click();
+      }catch(err){ alert('Ошибка при экспорте: '+err.message); }
+    });
+
+    function roundRect(ctx, x, y, w, h, r){ const radius = Math.min(r, w/2, h/2); ctx.beginPath(); ctx.moveTo(x+radius, y); ctx.arcTo(x+w, y, x+w, y+h, radius); ctx.arcTo(x+w, y+h, x, y+h, radius); ctx.arcTo(x, y+h, x, y, radius); ctx.arcTo(x, y, x+w, y, radius); ctx.closePath(); }
+    function roundRectStroke(ctx, x, y, w, h, r){ roundRect(ctx,x,y,w,h,r); }
+
+    // responsive background for square mode
+    window.addEventListener('resize', ()=>{ if(bgImg && els.bgMode.value === 'square' && Math.abs(bgImg.naturalWidth / bgImg.naturalHeight - 1) < 0.02){ const size = Math.max(window.innerWidth, window.innerHeight) * 1.2; bgImgEl.style.width = size + 'px'; bgImgEl.style.height = size + 'px'; } });
+
+    // initial set
+    updateAll();
+  </script>
+</body>
+</html>
