@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Liquid Glass — demo</title>
+  <title>Liquid Glass — fixed blend modes</title>
   <style>
     :root{
       --bg: url('/mnt/data/8ECC686E-AE75-4523-BD6D-EC752BCBF5C6.jpeg') center/cover no-repeat;
@@ -15,7 +15,11 @@
       --card-outline-opacity: 1;
       --inner-shadow: 8px;
       --outer-shadow: 18px;
+
+      /* цвета теней — можно менять через UI */
+      --inner-shadow-color: rgba(0,0,0,0.45);
       --outer-shadow-color: rgba(2,6,23,0.6);
+
       --blend-mode: normal;
       --outline-css: linear-gradient(180deg, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0.25) 30%, rgba(255,255,255,0.10) 60%, rgba(255,255,255,0.04) 85%, rgba(255,255,255,0.0) 100%);
       --accent: #64ffda;
@@ -65,7 +69,8 @@
       border-radius: var(--card-r);
       position: relative;box-sizing: border-box;
       background: linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.03) 30%, rgba(255,255,255,0.015) 60%, rgba(255,255,255,0.01) 85%, rgba(255,255,255,0) 100%);
-      box-shadow: inset 0 0 var(--inner-shadow) rgba(0,0,0,0.45), 0 var(--outer-shadow) calc(var(--outer-shadow) * 1.8) var(--outer-shadow-color);
+      /* внутренняя тень как в оригинале + переменная цвета */
+      box-shadow: inset 0 0 var(--inner-shadow) var(--inner-shadow-color), 0 var(--outer-shadow) calc(var(--outer-shadow) * 1.8) var(--outer-shadow-color);
       backdrop-filter: blur(var(--card-blur)) saturate(130%);
       -webkit-backdrop-filter: blur(var(--card-blur)) saturate(130%);
       overflow:visible;display:block;transform: translateZ(0);
@@ -90,7 +95,7 @@
 </head>
 <body>
   <div class="controls" id="controls">
-    <h3>Liquid glass — настройки</h3>
+    <h3>Settings</h3>
     <div class="row file">
       <label>Фон</label>
       <input type="file" id="bgFile" accept="image/*">
@@ -100,9 +105,9 @@
     <div class="row">
       <label>Режим фона</label>
       <select id="bgMode" style="flex:1">
-        <option value="cover">Заполнить (cover)</option>
-        <option value="contain">Сохранить пропорции (contain)</option>
-        <option value="square">Square-scale (если картинка квадратная — останется квадратной)</option>
+        <option value="cover">cover</option>
+        <option value="contain">save prop</option>
+        <option value="square">Square-scale</option>
       </select>
     </div>
 
@@ -113,13 +118,13 @@
     </div>
     <div class="row">
       <label>Высота</label>
-      <input type="range" id="h" min="120" max="1400" value="480">
+      <input type="range" id="h" min="100" max="1400" value="480">
       <div class="val" id="hVal">480px</div>
     </div>
     <div class="row">
       <label>Скругление</label>
       <input type="range" id="r" min="0" max="160" value="28">
-      <div class="val" id="rVal">28px</div>
+      <div class="val" id="rVal">55px</div>
     </div>
     <div class="row">
       <label>Размытие</label>
@@ -149,22 +154,8 @@
 
     <div class="row">
       <label>Ползунки — цвет</label>
-      <input type="color" id="sliderColor" value="#64ffda" style="width:56px;height:32px;border-radius:6px;border:none;background:none;padding:0">
+      <input type="color" id="sliderColor" value="#ffffff" style="width:56px;height:32px;border-radius:6px;border:none;background:none;padding:0">
       <div style="flex:1;color:#ffffff;font-size:12px;align-self:center">Цвет бегунка</div>
-    </div>
-
-    <div class="row">
-      <label>Метод наложения</label>
-      <select id="blend" style="flex:1">
-        <option value="normal">normal</option>
-        <option value="multiply">multiply</option>
-        <option value="screen">screen</option>
-        <option value="overlay">overlay</option>
-        <option value="darken">darken</option>
-        <option value="lighten">lighten</option>
-        <option value="soft-light">soft-light</option>
-        <option value="hard-light">hard-light</option>
-      </select>
     </div>
 
     <div class="row">
@@ -186,10 +177,17 @@
       </select>
     </div>
 
-    <div style="display:flex;gap:8px;margin-top:8px;justify-content:flex-end">
-      <button id="export" class="btn">Экспорт PNG</button>
+    <!-- цветовые селекторы для теней -->
+    <div class="row">
+      <label>Цвет внутр. тени</label>
+      <input type="color" id="innerColor" value="#000000">
+      <div class="val" style="width:auto">(alpha 0.45)</div>
     </div>
-  </div>
+    <div class="row">
+      <label>Цвет внеш. тени</label>
+      <input type="color" id="outerColor" value="#000000">
+      <div class="val" style="width:auto">(alpha 0.60)</div>
+    </div>
 
   <div class="stage">
     <img id="bgImgEl" alt="background" />
@@ -198,11 +196,8 @@
     </div>
   </div>
 
-  <div class="hint">hi bro</div>
-
   <script>
     const root = document.documentElement;
-    const card = document.getElementById('card');
     const controls = document.getElementById('controls');
     const bgImgEl = document.getElementById('bgImgEl');
 
@@ -268,9 +263,8 @@
       const img = new Image(); img.crossOrigin='anonymous'; img.src = url;
       img.onload = ()=>{
         bgImg = img;
-        bgMode = els.bgMode.value;
+        bgMode = document.getElementById('bgMode').value;
         if(bgMode === 'square' && Math.abs(img.naturalWidth / img.naturalHeight - 1) < 0.02){
-          // make a large centered square element that preserves square aspect
           const size = Math.max(window.innerWidth, window.innerHeight) * 1.2;
           bgImgEl.src = url; bgImgEl.style.width = size + 'px'; bgImgEl.style.height = size + 'px'; bgImgEl.style.objectFit = 'cover'; bgImgEl.style.display = 'block';
           document.body.style.background = 'none';
@@ -289,19 +283,37 @@
       const url = URL.createObjectURL(f);
       applyBgFromURL(url);
     });
-    els.bgMode.addEventListener('change', ()=>{
+    document.getElementById('bgMode').addEventListener('change', ()=>{
       if(!bgImg) return; applyBgFromURL(bgImg.src);
     })
     resetBg.addEventListener('click', ()=>{ document.body.style.background = defaultBg; bgImgEl.style.display='none'; bgImg=null });
 
     // tap to toggle controls (touch/click) — anywhere except inside the controls
     function toggleControls(){ controls.classList.toggle('hidden'); }
-    // use pointerdown for best cross-device behaviour
     document.addEventListener('pointerdown', (e)=>{ if(e.composedPath().includes(controls)) return; toggleControls(); });
-    // prevent clicks inside controls from toggling
     controls.addEventListener('pointerdown', e=>e.stopPropagation());
 
-    // export updated: handle bgImgEl if present
+    // shadow color controls (inner + outer)
+    const innerColor = document.getElementById('innerColor');
+    const outerColor = document.getElementById('outerColor');
+
+    function hexToRgba(hex, a){
+      const h = hex.replace('#','');
+      const r = parseInt(h.substring(0,2),16);
+      const g = parseInt(h.substring(2,4),16);
+      const b = parseInt(h.substring(4,6),16);
+      return `rgba(${r},${g},${b},${a})`;
+    }
+
+    function updateShadowColors(){
+      setVar('--inner-shadow-color', hexToRgba(innerColor.value, 0.45));
+      setVar('--outer-shadow-color', hexToRgba(outerColor.value, 0.6));
+    }
+    innerColor.addEventListener('input', updateShadowColors);
+    outerColor.addEventListener('input', updateShadowColors);
+    updateShadowColors();
+
+    // EXPORT: respect chosen blend-mode by using canvas globalCompositeOperation
     const exportBtn = document.getElementById('export');
     exportBtn.addEventListener('click', async ()=>{
       try{
@@ -311,44 +323,88 @@
 
         // draw background
         if(bgImg){
-          if(els.bgMode.value === 'square' && Math.abs(bgImg.naturalWidth / bgImg.naturalHeight - 1) < 0.02){
-            // draw centered square image scaled to cover
+          if(document.getElementById('bgMode').value === 'square' && Math.abs(bgImg.naturalWidth / bgImg.naturalHeight - 1) < 0.02){
             const scale = Math.max(w / bgImg.naturalWidth, h / bgImg.naturalHeight);
             const dw = bgImg.naturalWidth * scale; const dh = bgImg.naturalHeight * scale;
             const dx = (w - dw)/2; const dy = (h - dh)/2;
             ctx.drawImage(bgImg, dx, dy, dw, dh);
           } else {
-            // cover behaviour for export
             const ar = bgImg.naturalWidth / bgImg.naturalHeight; const car = w / h; let dw = w, dh = h, dx=0, dy=0;
             if(ar > car){ dh = h; dw = h * ar; dx = (w - dw) / 2; } else { dw = w; dh = w / ar; dy = (h - dh) / 2; }
             ctx.drawImage(bgImg, dx, dy, dw, dh);
           }
         } else {
-          // fallback: draw computed body background via CSS (not reliable for remote images)
+          // fallback: draw computed body background via CSS (best-effort)
           const cssBg = getComputedStyle(document.body).backgroundImage;
           if(cssBg && cssBg !== 'none'){
-            const m = cssBg.match(/url\(["']?(.+?)["']?\)/);
+            const m = cssBg.match(/url\((?:\"|')?(.+?)(?:\"|')?\)/);
             if(m){ const img = new Image(); img.crossOrigin='anonymous'; img.src = m[1]; await new Promise(res=> img.onload = res); const ar = img.width/img.height; const car = w/h; let dw=w,dh=h,dx=0,dy=0; if(ar>car){ dh=h; dw=h*ar; dx=(w-dw)/2 } else { dw=w; dh=w/ar; dy=(h-dh)/2 } ctx.drawImage(img, dx, dy, dw, dh); }
           }
         }
 
-        // draw glass (base fill)
+        // draw glass base (semi-transparent white)
         ctx.fillStyle = 'rgba(255,255,255,0.06)';
         roundRect(ctx, 0, 0, w, h, parseInt(els.r.value)); ctx.fill();
 
-        // overlay subtle highlight
-        const grd = ctx.createLinearGradient(0,0,0,h); grd.addColorStop(0, 'rgba(255,255,255,0.06)'); grd.addColorStop(0.35, 'rgba(255,255,255,0.02)'); ctx.fillStyle = grd; ctx.globalCompositeOperation = 'overlay'; ctx.fill(); ctx.globalCompositeOperation = 'source-over';
+        // draw highlight/overlay using chosen blend-mode
+        // map 'normal' -> 'source-over' for canvas
+        const blendVal = document.getElementById('blend').value;
+        const canvasBlend = blendVal === 'normal' ? 'source-over' : blendVal;
 
-        // inner shadow (approximation)
+        // create gradient similar to CSS .glass::before
+        const grd = ctx.createLinearGradient(0,0,0,h);
+        grd.addColorStop(0, 'rgba(255,255,255,0.06)');
+        grd.addColorStop(0.35, 'rgba(255,255,255,0.02)');
+        // use globalCompositeOperation to mimic CSS mix-blend-mode
+        ctx.save();
+        ctx.globalCompositeOperation = canvasBlend;
+        ctx.fillStyle = grd;
+        roundRect(ctx, 0, 0, w, h, parseInt(els.r.value));
+        ctx.fill();
+        ctx.restore();
+        ctx.globalCompositeOperation = 'source-over';
+
+        // inner shadow (approximation) — use chosen inner color and inset value
         const inset = parseFloat(els.inset.value);
-        if(inset>0){ ctx.save(); ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = 'rgba(0,0,0,0.12)'; roundRect(ctx, 0, 0, w, h, parseInt(els.r.value)); ctx.clip(); for(let i=0;i<inset;i+=4){ ctx.strokeStyle = `rgba(0,0,0,${0.04})`; ctx.lineWidth = 4; roundRectStroke(ctx, i, i, w-i*2, h-i*2, Math.max(0,parseInt(els.r.value)-i)); ctx.stroke(); } ctx.restore(); }
+        if(inset>0){
+          ctx.save();
+          roundRect(ctx, 0, 0, w, h, parseInt(els.r.value));
+          ctx.clip();
+          const innerColorCss = getComputedStyle(document.documentElement).getPropertyValue('--inner-shadow-color').trim();
+          ctx.globalCompositeOperation = 'multiply';
+          for(let i=0;i<inset;i+=4){
+            ctx.strokeStyle = innerColorCss;
+            ctx.lineWidth = 4;
+            roundRectStroke(ctx, i, i, w - i*2, h - i*2, Math.max(0, parseInt(els.r.value) - i));
+            ctx.stroke();
+          }
+          ctx.restore();
+          ctx.globalCompositeOperation = 'source-over';
+        }
 
-        // outline (approximation)
+        // outline
         const pad = parseFloat(els.pad.value);
         const op = parseFloat(els.op.value);
-        if(pad > 0 && op > 0){ ctx.lineWidth = pad*2; ctx.strokeStyle = `rgba(255,255,255,${0.6*op})`; roundRectStroke(ctx, ctx.lineWidth/2, ctx.lineWidth/2, w-ctx.lineWidth, h-ctx.lineWidth, parseInt(els.r.value)); ctx.stroke(); }
+        if(pad > 0 && op > 0){
+          ctx.lineWidth = pad*2;
+          ctx.strokeStyle = `rgba(255,255,255,${0.6*op})`;
+          roundRectStroke(ctx, ctx.lineWidth/2, ctx.lineWidth/2, w-ctx.lineWidth, h-ctx.lineWidth, parseInt(els.r.value));
+          ctx.stroke();
+        }
 
-        // export
+        // outer shadow approximation (simple)
+        const outer = parseFloat(els.outer.value);
+        if(outer>0){
+          const outerColorCss = getComputedStyle(document.documentElement).getPropertyValue('--outer-shadow-color').trim();
+          ctx.save();
+          ctx.globalCompositeOperation = 'destination-over';
+          ctx.lineWidth = outer;
+          ctx.strokeStyle = outerColorCss;
+          roundRectStroke(ctx, outer/2, outer/2, w - outer, h - outer, parseInt(els.r.value));
+          ctx.stroke();
+          ctx.restore();
+        }
+
         const data = c.toDataURL('image/png'); const a = document.createElement('a'); a.href = data; a.download = 'liquid-glass.png'; a.click();
       }catch(err){ alert('Ошибка при экспорте: '+err.message); }
     });
@@ -357,7 +413,7 @@
     function roundRectStroke(ctx, x, y, w, h, r){ roundRect(ctx,x,y,w,h,r); }
 
     // responsive background for square mode
-    window.addEventListener('resize', ()=>{ if(bgImg && els.bgMode.value === 'square' && Math.abs(bgImg.naturalWidth / bgImg.naturalHeight - 1) < 0.02){ const size = Math.max(window.innerWidth, window.innerHeight) * 1.2; bgImgEl.style.width = size + 'px'; bgImgEl.style.height = size + 'px'; } });
+    window.addEventListener('resize', ()=>{ if(bgImg && document.getElementById('bgMode').value === 'square' && Math.abs(bgImg.naturalWidth / bgImg.naturalHeight - 1) < 0.02){ const size = Math.max(window.innerWidth, window.innerHeight) * 1.2; bgImgEl.style.width = size + 'px'; bgImgEl.style.height = size + 'px'; } });
 
     // initial set
     updateAll();
